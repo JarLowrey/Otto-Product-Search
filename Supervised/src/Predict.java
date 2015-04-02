@@ -64,12 +64,12 @@ public class Predict {
 		
 		final int[] endPointOfClassifications = {1930,18052,26056,28747,31486,45621,48460,52924};
 		int currClassificationIndex=0;
-		int numWrong=0;
+		int numRight=0;
 		
 		for(int i=0;i<rowsOfData.size();i++){
 			//check if current row was properly assigned
-			if( ! rowsOfData.get(i).getClassificationName().equals(l.classifierName(currClassificationIndex)) ){
-				numWrong++;
+			if( rowsOfData.get(i).getClassificationName().equals(l.classifierName(currClassificationIndex)) ){
+				numRight++;
 			}
 			
 			//check if we have moved on to next classifier
@@ -81,7 +81,7 @@ public class Predict {
 			}
 		}
 		
-		System.out.println("Accuracy :: "+ (1 - (double)numWrong/rowsOfData.size() ) );
+		System.out.println("Accuracy :: "+ (double)numRight/rowsOfData.size() );
 	}
 	
 	/**
