@@ -1,6 +1,10 @@
 import java.util.ArrayList;
 
-
+/**
+ * 
+ * @author James
+ *
+ */
 public class ProductClass {
 	
 	private ArrayList<DataValue>[] data;
@@ -49,7 +53,7 @@ public class ProductClass {
 		ArrayList<DataValue> featureData = data[feature];
 		for(int i=0;i<featureData.size();i++){
 			if(featureData.get(i).value == dataValue){
-				return featureData.get(i).numOfDataWithThisValue();
+				return featureData.get(i).getCount();
 			}
 		}
 		
@@ -64,7 +68,7 @@ public class ProductClass {
 	public int totalCount(int featureNumber){
 		int count = 0;
 		for( DataValue d : data[featureNumber] ){
-			count += d.numOfDataWithThisValue();
+			count += d.getCount();
 		}
 		return count;
 	}

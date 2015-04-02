@@ -4,25 +4,39 @@ import java.util.ArrayList;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
-
+/**
+ * Given the name of a formatted data file for predicting/testing, classify each product/row into learned classifications
+ * @author James
+ *
+ */
 public class Predict {
 
-	ArrayList<int[]> rowsOfData = new ArrayList<int[]>();
+	ArrayList<DataRow> rowsOfData = new ArrayList<DataRow>();
+	Learn l;
 	
 	public Predict(String trainDataFileName,String testDataFileName) throws IOException{
-		Learn l = new Learn(trainDataFileName);
+		l = new Learn(trainDataFileName);
 		
 		parseFile(testDataFileName);
 		
-		for(int k=0;k<5;k++){
-//		for(int k=0;k<rowsOfData.size();k++){
-			double[] probs = new double[l.getNumClasses()];
+		classifyParsedData();
+	}
+	
+	/**
+	 * Iterate through the rows of parsed data and find the maximum log likelihood estimation of the data belonging to each classification.
+	 * Print the best classification to the screen.
+	 */
+	private void classifyParsedData(){
+		for(DataRow currData : rowsOfData){			
+			double[] probs = new double[l.getNumClassifications()];
 			
+			//find the log probability of the currentData belonging to each data feature
 			for(int i=0;i<probs.length;i++){
-				probs[i] = l.logProbability(i, rowsOfData.get(k) );
-				System.out.println("Class "+(1+i)+" Probability " +probs[i]);
+				probs[i] = l.logProbability(i, currData.features );
+//				System.out.println("Class "+(1+i)+" Probability " +probs[i]);
 			}
 
+			//find the max in the probs array. The corresponding index indicates the classification of the currData
 			double max= - Double.MAX_VALUE;
 			int maxIndex =0;
 			for(int i=0;i<probs.length;i++){
@@ -31,36 +45,34 @@ public class Predict {
 					maxIndex=i;
 				}
 			}
-//			double min= Double.MAX_VALUE;
-//			int minIndex =0;
-//			for(int i=0;i<probs.length;i++){
-//				if(probs[i] < min){
-//					min = probs[i];
-//					minIndex=i;
-//				}
-//			}
-			System.out.println("ID "+(k+1) +" :: Class "+(maxIndex+1));
+			
+			System.out.println("ID "+ currData.id +" :: Class :: "+l.classifierName(maxIndex) );
 		}
 	}
-
+	
+	/**
+	 * Iterate through the file and add each
+	 * @param testDataFileName
+	 * @throws IOException
+	 */
 	private void parseFile(String testDataFileName ) throws IOException{
 		Scanner in = new Scanner(Paths.get(testDataFileName));
-		in.nextLine();//first line is labels
+		in.nextLine();//first line is composed of column labels (trash it)
 		
-		String[] features = in.nextLine().split(",");
+		String[] strFeatures = in.nextLine().split(",");
 		
 		while(true){
-			int[] idAndFeatures = new int[features.length];
+			int[] intFeatures = new int[strFeatures.length-1];
 			
-			for(int i=1;i<features.length;i++){
-				idAndFeatures[i] = Integer.parseInt(features[i]);
+			for(int i=0;i<intFeatures.length;i++){
+				intFeatures[i] = Integer.parseInt(strFeatures[i+1]);
 			}
 
-			rowsOfData.add(idAndFeatures);
+			rowsOfData.add( new DataRow(Integer.parseInt(strFeatures[0]),intFeatures) );
 			
-			try{
-				features = in.nextLine().split(",");
-			}catch(NoSuchElementException e){//EOF
+			try{//Scanner throws error when it cannot find nextLine(). Thus EOF is reached, break out of while loop
+				strFeatures = in.nextLine().split(",");
+			}catch(NoSuchElementException e){
 				break;
 			}
 		}
