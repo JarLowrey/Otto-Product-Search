@@ -81,7 +81,7 @@ public class Predict {
 			}
 		}
 		
-		System.out.println("Accuracy :: "+(double)numWrong/rowsOfData.size());
+		System.out.println("Accuracy :: "+ (1 - (double)numWrong/rowsOfData.size() ) );
 	}
 	
 	/**
