@@ -56,6 +56,8 @@ public class Learn {
 	 * @throws IOException 
 	 */
 	private void parseFile(String filename) throws IOException{
+		System.out.println("Learning Data");
+		
 		Scanner in = new Scanner(Paths.get(filename));
 		in.nextLine();//first line is labels
 		
