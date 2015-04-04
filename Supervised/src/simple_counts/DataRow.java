@@ -1,3 +1,4 @@
+package simple_counts;
 
 /**
  * Data with an Id and array of Integer features
