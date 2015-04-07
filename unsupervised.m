@@ -1,36 +1,36 @@
-function logProb = gaussmix(numClusters, dataFile, modelFile)
+function logProb = gaussmix(numClusters, dataFile, modelFile, maxNumValuesPerFeat, numExamples, numFeatures)
     if isa(numClusters,'char')
         numClusters = str2double(numClusters);
     end
     
-    [data,numExamples,numFeatures] = scanIn(dataFile);
-    [means, variances, priors] = init(data,numClusters);
+    [data] = scanIn(dataFile, numExamples, numFeatures);
+    [multinomials, priors] = init(data,numClusters, maxNumValuesPerFeat);
     logProb = -realmax;
     
-    repeat=true;
-    iterationNo=0;
-    while repeat 
-        [clusterLogDist,clusterLogDistDenominators] = eStep(data,numExamples,numFeatures,numClusters,means,variances,priors);
-        [means, variances, priors] = mStep(data,numExamples,numFeatures,numClusters,clusterLogDist);
-        
-        %see if stopping condition has been met by finding total log Prob
-        probAfterIteration = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators);
-        repeat = (probAfterIteration-logProb) > 0.001;
-        
-        %total log probability is monotonically increasing. Otherwise there
-        %is an error in the program
-        if ( probAfterIteration-logProb ) < 0
-           disp('ERROR : Total probability decreasing!!'); 
-           return
-        end
-        
-        logProb = probAfterIteration;
-        iterationNo = iterationNo+1;
-        totalLogProbsVector(iterationNo) = probAfterIteration;
-    end
-    
-    plotTotalLogProbData(totalLogProbsVector,dataFile);
-    writeOutput(modelFile,clusterLogDist,data);
+%     repeat=true;
+%     iterationNo=0;
+%     while repeat 
+%         [clusterLogDist,clusterLogDistDenominators] = eStep(data,numExamples,numFeatures,numClusters,means,variances,priors);
+%         [means, variances, priors] = mStep(data,numExamples,numFeatures,numClusters,clusterLogDist);
+%         
+%         %see if stopping condition has been met by finding total log Prob
+%         probAfterIteration = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators);
+%         repeat = (probAfterIteration-logProb) > 0.001;
+%         
+%         %total log probability is monotonically increasing. Otherwise there
+%         %is an error in the program
+%         if ( probAfterIteration-logProb ) < 0
+%            disp('ERROR : Total probability decreasing!!'); 
+%            return
+%         end
+%         
+%         logProb = probAfterIteration;
+%         iterationNo = iterationNo+1;
+%         totalLogProbsVector(iterationNo) = probAfterIteration;
+%     end
+%     
+%     plotTotalLogProbData(totalLogProbsVector,dataFile);
+%     writeOutput(modelFile,clusterLogDist,data);
 end
 
 function plotTotalLogProbData(totalLogProbVector,dataFile)
@@ -43,15 +43,15 @@ function plotTotalLogProbData(totalLogProbVector,dataFile)
 
 end
 
-function [rawData,numExamples,numFeatures] = scanIn( dataFile)
+function [rawData] = scanIn( dataFile, numExamples, numFeatures)
     fid = fopen(dataFile,'r'); % Open text file
     
-    exAndFeat = cell2mat( textscan(fid,'%d %d',1) );  % Read first line
-    numExamples = exAndFeat(1); 
-    numFeatures = exAndFeat(2);
+    r = [1 1 numExamples numFeatures];
     
-    rawData = cell2mat( textscan(fid,repmat('%f ',[1,numFeatures])) ); %textscan repeats until it finds differentm format
-    
+    result = dlmread(dataFile, ',', r);
+            
+    rawData = zeros(numExamples, numFeatures);
+        
     fclose(fid);
 end
 
@@ -85,7 +85,10 @@ function writeOutput(modelFile,clusterLogDist,data)
     fclose(fid);
 end
 
-function [means, variances, priors] = init(data, numClusters)
+% multinomials: (num clusters) x (num features) x (num values per fectures)
+% array of integers representing counts of each value for each feature in a
+% cluster
+function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
     %initialize cluster priors to a uniform distribution
     if numClusters==1
         priors = 1;
@@ -98,33 +101,20 @@ function [means, variances, priors] = init(data, numClusters)
     numExAndFeat = size(data);
     numEx = numExAndFeat(1);
     numFeat = numExAndFeat(2);
-        
-    %find mins and maxs of each data feature
-    mins( 1 : numFeat ) =  realmax;
-    maxs( 1 : numFeat ) =  -realmax;
-    for i=1:numEx
-       for j=1:numFeat
-           if(data(i,j)>maxs(j))
-               maxs(j)= data(i,j) ;               
-           end
-           if(data(i,j)<mins(j))
-               mins(j)=data(i,j);
-           end
-       end
-    end
-        
-    %init means to a random value in the range of the data
-    %init standard deviations to a fixed fraction of the range of each variable
-    means = zeros(numClusters,numFeat);
-    variances = zeros(numClusters,numFeat,numFeat);
     
-    for i=1:numClusters
-        %randEx = 1+floor(rand()*numEx);%randomly choose from data
+    %iterate through datapoints; assign each datapoint to a cluster and
+    %update the assigned cluster's multinomial distribution
+    multinomials = zeros(numClusters,numFeat,maxNumValuesPerFeat);
+    numDataInCluster = zeros(numClusters);
+    for i=1:numEx
+        % get the cluster assignment
+        clusterAssignment = floor(numClusters * rand()) + 1;
+        numDataInCluster(clusterAssignment) = numDataInCluster(clusterAssignment) + 1;
+        
+        % iterate through the number of features and add 1 to the feature
+        % value which the data has
         for j=1:numFeat
-            range = maxs(j)-mins(j);
-            means(i,j) = range*rand()+mins(j);%random in range of data
-            %means(i,j) = data( randEx , j);%randomly choose from data
-            variances(i,j,j) = ( range / 2.0 )^2 ;
+            multinomials(clusterAssignment, j, data(i, j)) = multinomials(clusterAssignment, j, data(i, j)) + 1;
         end
     end
 end
