@@ -13,6 +13,8 @@ import java.util.Scanner;
  */
 public class Learn {
 
+	public static final double SMOOTHING_PRIOR = 1;
+	
 	private ArrayList<ProductClass> classifications = new ArrayList<ProductClass>();
 	private int numFeatures;
 	
@@ -31,7 +33,9 @@ public class Learn {
 		ProductClass p = classifications.get(whichClass);
 		double max = - Double.MAX_VALUE;
 		for(int i=0;i<numFeatures;i++){
-			final double probOfFeature = p.getCountOfDataWithValue(i, featureData[i]) / (double) p.totalCount(i) ;
+			final double numerator = p.getCountOfDataWithValue(i, featureData[i]) + SMOOTHING_PRIOR;
+			final double denominator = p.totalCount(i) + SMOOTHING_PRIOR * numFeatures;
+			final double probOfFeature = numerator / denominator ;
 			if( probOfFeature > max){
 				max = probOfFeature;
 			}
@@ -40,7 +44,9 @@ public class Learn {
 		double logSum = 0;
 		for(int i=0;i<numFeatures;i++){
 			if(featureData[i] != 0){
-				final double probOfFeature = p.getCountOfDataWithValue(i, featureData[i]) / (double) p.totalCount(i) ;
+				final double numerator = p.getCountOfDataWithValue(i, featureData[i]) + SMOOTHING_PRIOR;
+				final double denominator = p.totalCount(i) + SMOOTHING_PRIOR * numFeatures;
+				final double probOfFeature = numerator / denominator ;
 				logSum += Math.exp( probOfFeature - max);
 //				prob+=p.getCountOfDataWithValue(i, featureData[i]);
 //				prob += Math.log( p.getCountOfDataWithValue(i, featureData[i]) ) - Math.log( (double) p.totalCount(i) );
