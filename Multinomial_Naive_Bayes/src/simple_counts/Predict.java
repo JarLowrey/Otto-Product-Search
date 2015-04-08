@@ -13,16 +13,16 @@ import java.util.Scanner;
 public class Predict {
 
 	ArrayList<DataRow> rowsOfData = new ArrayList<DataRow>();
-	Learn l;
+	Learn myLearnedInformation;
 	
 	public Predict(String trainDataFileName,String testDataFileName) throws IOException{
-		l = new Learn(trainDataFileName);
+		myLearnedInformation = new Learn(trainDataFileName);
+
+		System.out.println("Classifying data");
 		
 		parseFile(testDataFileName);
 		
 		classifyParsedData();
-		
-		printAccuracy();
 	}
 	
 	/**
@@ -30,59 +30,28 @@ public class Predict {
 	 * Print the best classification to the screen.
 	 */
 	private void classifyParsedData(){
-		System.out.println("Classifying data");
-		
 		for(DataRow currData : rowsOfData){			
-			double[] probs = new double[l.getNumClassifications()];
+			double[] probOfDataRowBelongingToEachClass = new double[myLearnedInformation.getNumClassifications()];
 			
 			//find the log probability of the currentData belonging to each data feature
-			for(int i=0;i<probs.length;i++){
-				probs[i] = l.logProbability(i, currData.getFeatures() );
+			for(int i=0;i<probOfDataRowBelongingToEachClass.length;i++){
+				probOfDataRowBelongingToEachClass[i] = myLearnedInformation.logProbability(i, currData.getFeatures() );
 //				System.out.println("Class "+(1+i)+" Probability " +probs[i]);
 			}
 
-			//find the max in the probs array. The corresponding index indicates the classification of the currData
+			//find the max log prob. The corresponding index indicates the max and thus the classification of the currData
 			double max= - Double.MAX_VALUE;
 			int maxIndex =0;
-			for(int i=0;i<probs.length;i++){
-				if(probs[i]>max){
-					max = probs[i];
+			for(int i=0;i<probOfDataRowBelongingToEachClass.length;i++){
+				if(probOfDataRowBelongingToEachClass[i]>max){
+					max = probOfDataRowBelongingToEachClass[i];
 					maxIndex=i;
 				}
 			}
 			
-			currData.setClassification(l.classifierName(maxIndex));
+			currData.setClassification(myLearnedInformation.classifierName(maxIndex));
 //			System.out.println("ID "+ currData.getId() +" :: Class :: "+l.classifierName(maxIndex) );
 		}
-	}
-	
-	/**
-	 * Assuming both files for Learn and predict are the train files (where the classifications are known), iterate through this program's assignment of classifications to see 
-	 * the accuracy.
-	 */
-	private void printAccuracy(){
-		System.out.println("Finding classification Accuracy");
-		
-		final int[] endPointOfClassifications = {1930,18052,26056,28747,31486,45621,48460,52924};
-		int currClassificationIndex=0;
-		int numRight=0;
-		
-		for(int i=0;i<rowsOfData.size();i++){
-			//check if current row was properly assigned
-			if( rowsOfData.get(i).getClassificationName().equals(l.classifierName(currClassificationIndex)) ){
-				numRight++;
-			}
-			
-			//check if we have moved on to next classifier
-			for(int j=0;j<endPointOfClassifications.length;j++){
-				if(endPointOfClassifications[j] == i){
-					currClassificationIndex++;
-					break;
-				}
-			}
-		}
-		
-		System.out.println("Accuracy :: "+ (double)numRight/rowsOfData.size() );
 	}
 	
 	/**
@@ -97,13 +66,14 @@ public class Predict {
 		String[] strFeatures = in.nextLine().split(",");
 		
 		while(true){
-			int[] intFeatures = new int[strFeatures.length-1];
+			int[] intFeatures = new int[strFeatures.length-1];//Only include features (not id)
+			final int id = Integer.parseInt(strFeatures[0]);
 			
 			for(int i=0;i<intFeatures.length;i++){
-				intFeatures[i] = Integer.parseInt(strFeatures[i+1]);
+				intFeatures[i] = Integer.parseInt(strFeatures[i+1]);//i+1 since first column is ID
 			}
 
-			rowsOfData.add( new DataRow(Integer.parseInt(strFeatures[0]),intFeatures) );
+			rowsOfData.add( new DataRow(id,intFeatures) );
 			
 			try{//Scanner throws error when it cannot find nextLine(). Thus EOF is reached, break out of while loop
 				strFeatures = in.nextLine().split(",");

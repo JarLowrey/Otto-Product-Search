@@ -1,7 +1,7 @@
 package simple_counts;
 
 /**
- * Data with an Id and array of Integer features
+ * Data with an Id, array of Integer features, and a classification name
  * @author James
  *
  */

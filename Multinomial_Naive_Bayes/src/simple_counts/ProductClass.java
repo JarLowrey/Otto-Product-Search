@@ -2,20 +2,20 @@ package simple_counts;
 import java.util.ArrayList;
 
 /**
- * 
+ * Classifications of product types
  * @author James
  *
  */
 public class ProductClass {
 	
-	private ArrayList<DataValue>[] data;
+	private ArrayList<DataValue>[] dataValuesForEachFeature;//array of size #features, where each entry in the array is an ArrayList containing DataValue class entries
 	private String name;
 	
 	public ProductClass(String classificationName,int numFeatures){
 		name = classificationName; 
-		data = (ArrayList<DataValue>[])new ArrayList[numFeatures];
+		dataValuesForEachFeature = (ArrayList<DataValue>[])new ArrayList[numFeatures];
 		for (int i = 0; i < numFeatures; i++) {
-		    data[i] = new ArrayList<DataValue>();
+		    dataValuesForEachFeature[i] = new ArrayList<DataValue>();
 		}
 	}
 	public String getName(){
@@ -30,9 +30,10 @@ public class ProductClass {
 	 * 		DataValue in classifications ArrayList.
 	 */
 	public void addData(int dataValue,int featureNumber,int id){
-		ArrayList<DataValue> featureData = data[featureNumber];
-		int index=-1;
+		ArrayList<DataValue> featureData = dataValuesForEachFeature[featureNumber];
 		
+		//search for the DataValue with a value equal to the passed parameter
+		int index=-1;		
 		for(int i=0;i<featureData.size();i++){
 			if( featureData.get(i).value == dataValue ){
 				index=i;
@@ -41,23 +42,32 @@ public class ProductClass {
 		}
 		
 		DataValue d;
-		if( index < 0 ){
+		if( index < 0 ){//the DataValue was not found, create a new one
 			d=new DataValue(dataValue);
 			featureData.add(d);
-		}else{
+		}else{//DataValue found
 			d = featureData.get(index);
 		}
+		//add id to the DataValue
 		d.addId(id);
 	}
 	
+	/**
+	 * in the specified feature, find how many times a given dataValue occurs
+	 * @param feature
+	 * @param dataValue
+	 * @return
+	 */
 	public int getCountOfDataWithValue(int feature,int dataValue){
-		ArrayList<DataValue> featureData = data[feature];
+		ArrayList<DataValue> featureData = dataValuesForEachFeature[feature];
+		
+		//search through the ArrayList at given feature until desired value is found
 		for(int i=0;i<featureData.size();i++){
 			if(featureData.get(i).value == dataValue){
 				return featureData.get(i).getCount();
 			}
 		}
-		
+		//not found, return 0
 		return 0;
 	}
 	
@@ -68,7 +78,7 @@ public class ProductClass {
 	 */
 	public int totalCount(int featureNumber){
 		int count = 0;
-		for( DataValue d : data[featureNumber] ){
+		for( DataValue d : dataValuesForEachFeature[featureNumber] ){
 			count += d.getCount();
 		}
 		return count;

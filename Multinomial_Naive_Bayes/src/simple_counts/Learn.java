@@ -23,7 +23,7 @@ public class Learn {
 	}
 	
 	/**
-	 * Given a set of data features and a class, find the probability of the set of data belonging to that class
+	 * Given a set of data features and a class, find the probability of the set of data belonging to that class. This is actual application of the Multinomial Naive Bayes.
 	 * @param whichClass
 	 * @param featureData
 	 * 		array of data features belonging to a product.
@@ -31,31 +31,17 @@ public class Learn {
 	 */
 	public double logProbability(int whichClass,int[] featureData){
 		ProductClass p = classifications.get(whichClass);
-		double max = - Double.MAX_VALUE;
+		
+		//find log probability of data feature using multinomial naive bayes 
+		double logProb = 0;
 		for(int i=0;i<numFeatures;i++){
 			final double numerator = p.getCountOfDataWithValue(i, featureData[i]) + SMOOTHING_PRIOR;
 			final double denominator = p.totalCount(i) + SMOOTHING_PRIOR * numFeatures;
 			final double probOfFeature = numerator / denominator ;
-			if( probOfFeature > max){
-				max = probOfFeature;
-			}
+			logProb += Math.log(probOfFeature);
 		}
-
-		double logSum = 0;
-		for(int i=0;i<numFeatures;i++){
-			if(featureData[i] != 0){
-				final double numerator = p.getCountOfDataWithValue(i, featureData[i]) + SMOOTHING_PRIOR;
-				final double denominator = p.totalCount(i) + SMOOTHING_PRIOR * numFeatures;
-				final double probOfFeature = numerator / denominator ;
-				logSum += Math.exp( probOfFeature - max);
-//				prob+=p.getCountOfDataWithValue(i, featureData[i]);
-//				prob += Math.log( p.getCountOfDataWithValue(i, featureData[i]) ) - Math.log( (double) p.totalCount(i) );
-//				prob *= (double) p.getCountOfDataWithValue(i, featureData[i]) / (double) p.totalCount(i) ;
-//				System.out.println(featureData[i]+ " "+ p.getCountOfDataWithValue(i, featureData[i])+" "+p.totalCount(i));
-			}
-		}
-		
-		return max + Math.log(logSum);
+			
+		return logProb;
 	}
 	
 	/**
@@ -66,7 +52,7 @@ public class Learn {
 		System.out.println("Learning Data");
 		
 		Scanner in = new Scanner(Paths.get(filename));
-		in.nextLine();//first line is labels
+		in.nextLine();//first line is labels (trash it)
 		
 		String[] features = in.nextLine().split(",");
 		numFeatures = features.length-2;//first column is id and last column is classification number. Thus -2 columns

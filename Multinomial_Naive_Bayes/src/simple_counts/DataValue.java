@@ -9,11 +9,10 @@ import java.util.ArrayList;
 public class DataValue {
 
 	public int value;
-	ArrayList<Integer> ids;
+	ArrayList<Integer> ids;//used to keep track of count. This could be replaced with a simple 'int count=0' and would work the same
 	
 	public DataValue(int dataValue){
 		ids = new ArrayList<Integer>();
-//		feature=featureNumber;
 		value = dataValue;
 	}
 	
