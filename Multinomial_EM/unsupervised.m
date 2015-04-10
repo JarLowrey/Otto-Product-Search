@@ -1,9 +1,10 @@
-function logProb = gaussmix(numClusters, dataFile, modelFile, maxNumValuesPerFeat, numExamples, numFeatures)
+function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFeatures)
     if isa(numClusters,'char')
         numClusters = str2double(numClusters);
     end
     
-    [data] = scanIn(dataFile, numExamples, numFeatures);
+    data = scanIn(dataFile, numExamples, numFeatures);
+    maxNumValuesPerFeat = max(data);
     [multinomials, priors] = init(data,numClusters, maxNumValuesPerFeat);
     logProb = -realmax;
     
@@ -48,10 +49,8 @@ function [rawData] = scanIn( dataFile, numExamples, numFeatures)
     
     r = [1 1 numExamples numFeatures];
     
-    result = dlmread(dataFile, ',', r);
-            
-    rawData = zeros(numExamples, numFeatures);
-        
+    rawData = dlmread(dataFile, ',', r);
+                    
     fclose(fid);
 end
 
@@ -104,7 +103,10 @@ function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
     
     %iterate through datapoints; assign each datapoint to a cluster and
     %update the assigned cluster's multinomial distribution
-    multinomials = zeros(numClusters,numFeat,maxNumValuesPerFeat);
+    multinomials = zeros(numClusters, numFeat, (max(maxNumValuesPerFeat) + 1));
+    
+    
+    % multinomials = zeros(numClusters,numFeat,maxNumValuesPerFeat);
     numDataInCluster = zeros(numClusters);
     for i=1:numEx
         % get the cluster assignment
@@ -114,7 +116,7 @@ function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
         % iterate through the number of features and add 1 to the feature
         % value which the data has
         for j=1:numFeat
-            multinomials(clusterAssignment, j, data(i, j)) = multinomials(clusterAssignment, j, data(i, j)) + 1;
+            multinomials(clusterAssignment, j, (data(i, j) + 1)) = multinomials(clusterAssignment, j, (data(i, j) + 1)) + 1;
         end
     end
 end
