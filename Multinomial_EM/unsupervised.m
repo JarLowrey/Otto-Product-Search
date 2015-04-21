@@ -11,8 +11,8 @@ function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFe
     repeat=true;
     iterationNo=0;
     while repeat 
-        [clusterLogDist,clusterLogDistDenominators] = eStep(data,numExamples,numFeatures,numClusters,priors, multinomials);
-        [means, variances, priors] = mStep(data,numExamples,numFeatures,numClusters,clusterLogDist);
+        [clusterExampleProbs] = eStep(data,numExamples,numFeatures,numClusters,priors, multinomials);
+        [means, variances, priors] = mStep(data,numExamples,numFeatures,numClusters,clusterExampleProbs);
         
         %see if stopping condition has been met by finding total log Prob
         probAfterIteration = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators);
@@ -31,7 +31,7 @@ function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFe
     end
     
     plotTotalLogProbData(totalLogProbsVector,dataFile);
-    writeOutput(modelFile,clusterLogDist,data);
+    writeOutput(modelFile,clusterExampleProbs,data);
 end
 
 function plotTotalLogProbData(totalLogProbVector,dataFile)
@@ -167,10 +167,6 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
             probClusterEx(c, ex) = prior + prob_ex_c + prob_ex;
         end
     end
-       
-    
-    %now we have the cluster distributions. The distributions indicate the
-    %weight each data point has towards each cluster
 end
 
 function [means, variances, priors] = mStep(data,numExamples,numFeatures,numClusters,clusterLogDist)
