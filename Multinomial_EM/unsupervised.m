@@ -105,8 +105,6 @@ function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
     %update the assigned cluster's multinomial distribution
     multinomials = zeros(numClusters, numFeat, (max(maxNumValuesPerFeat) + 1));
     
-    
-    % multinomials = zeros(numClusters,numFeat,maxNumValuesPerFeat);
     numDataInCluster = zeros(numClusters);
     for i=1:numEx
         % get the cluster assignment
@@ -119,6 +117,18 @@ function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
             multinomials(clusterAssignment, j, (data(i, j) + 1)) = multinomials(clusterAssignment, j, (data(i, j) + 1)) + 1;
         end
     end
+    
+    % normalize multinomials
+    for c=1:numClusters
+        for f=1:numFeat
+            % divide each feature value by the total number of data in the
+            % cluster
+            for v=1:max(maxNumValuesPerFeat)
+                multinomials(c, f, v) = multinomials(c, f, v) / numDataInCluster(c);
+            end
+        end
+    end
+    
 end
 
 function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors, multinomials)
@@ -169,53 +179,24 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
     end
 end
 
-function [means, variances, priors] = mStep(data,numExamples,numFeatures,numClusters,clusterLogDist)
-    %NOTE :safe to convert from clusterLogDist back to probability as it is big
-    probabilityDistribution = exp(clusterLogDist);
-    weightsSummedOverDataExamples = sum(probabilityDistribution,1);
+function [multinomials, priors] = mStep(data, numExamples, numFeatures, numClusters, priors, multinomials, probClusterEx)
+    % Update the cluster priors
+    % P(c) = (1/ num examples) (sum over all examples) p(c | ex) [in
+    % probClusterEx]
+    priors = zeros(numClusters);
     
-    %for each cluster prior, average the distribution over every examples
-    %prior(cluster=c) = [ SUM OVER DATA EXAMPLES Prob(c|data) ]/numDataExamples
-    priors = sum(probabilityDistribution,1)./double(numExamples);%prior = sum over column dimension/numData
-    
-    
-    %for each mean, find weighted average of the data
-    %MEAN(cluster=c) = [ SUM OVER DATA EXAMPLES data * Prob(c|data) ] / [SUM OVER DATA EXAMPLES Prob(c|data) ]
-    means = zeros(numClusters,numFeatures);
-    for c=1:numClusters
-        for ex=1:numExamples
-            %for each cluster mean, sum up the data features weighted by
-            %probability
-            means(c,:) = means(c,:) + data(ex,:) .* probabilityDistribution(ex,c);
+    for c = 1:numClusters
+        double ex_sum = 0;
+        
+        for ex = 1:numExaples
+            ex_sum = ex_sum + probClusterEx(c, ex);
         end
         
-        means(c,:) = means(c,:) ./ weightsSummedOverDataExamples(c);
+        priors(c) = ex_sum / numExamples;
     end
     
-    
-    %for each variance, find distance from mean, square, and weight by dist
-    %variance(cluster=c) = [SUM OVER DATA EXAMPLES (data-mean^2) * Prob(c|data)] / [SUM OVER DATA EXAMPLES Prob(c|data) ]
-    variances = zeros(numClusters,numFeatures,numFeatures);
-    for c=1:numClusters
-        
-        varianceDiagonal = zeros(1,numFeatures);
-        for ex=1:numExamples
-            %for every data feature, find sqaure distance from mean and
-            %multiply by probability weight
-            squareDistFromMean = ( data(ex,:) - means(c,:) ).^2;
-            varianceDiagonal = varianceDiagonal + ( squareDistFromMean .* probabilityDistribution(ex,c) );
-        end
-        
-        varianceDiagonal = varianceDiagonal ./ weightsSummedOverDataExamples(c);
-        
-        %assign the variances to the diagonal of the variance cluster matrix
-        for f=1:numFeatures
-            variances(c,f,f) = varianceDiagonal(f);
-        end
-    end
-    
-    %now we have cluster priors and the parameters that define a cluster,
-    %means and variances of each data feature
+    % Update the multinomials
+    % For each cluster-feature-value, look at each example's p(c : ex) 
 end
 
 function totalLogProb = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators)    
