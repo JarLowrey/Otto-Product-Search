@@ -5,33 +5,35 @@ function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFe
     
     data = scanIn(dataFile, numExamples, numFeatures);
     maxNumValuesPerFeat = max(data);
-    [multinomials, priors] = init(data,numClusters, maxNumValuesPerFeat);
+    [multinomials, priors,maxNumValues] = init(data,numClusters, maxNumValuesPerFeat);
     logProb = -realmax;
     
     repeat=true;
     iterationNo=0;
+    maxIterations = 25;
     while repeat 
         [clusterExampleProbs] = eStep(data,numExamples,numFeatures,numClusters,priors, multinomials);
-        [means, variances, priors] = mStep(data,numExamples,numFeatures,numClusters,clusterExampleProbs);
+        [multinomials, priors] = mStep(data,numExamples,numFeatures,numClusters,multinomials,clusterExampleProbs,maxNumValues);
         
         %see if stopping condition has been met by finding total log Prob
-        probAfterIteration = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators);
-        repeat = (probAfterIteration-logProb) > 0.001;
-        
+%         probAfterIteration = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators);
+%         repeat = (probAfterIteration-elogProb) > 0.001;
+%         
         %total log probability is monotonically increasing. Otherwise there
         %is an error in the program
-        if ( probAfterIteration-logProb ) < 0
-           disp('ERROR : Total probability decreasing!!'); 
-           return
-        end
+%         if ( probAfterIteration-logProb ) < 0
+%            disp('ERROR : Total probability decreasing!!'); 
+%            return
+%         end
         
-        logProb = probAfterIteration;
+        % logProb = proffprintfbAfterIteration;
         iterationNo = iterationNo+1;
-        totalLogProbsVector(iterationNo) = probAfterIteration;
+        % totalLogProbsVector(iterationNo) = probAfterIteration;
+        repeat = iterationNo < maxIterations;
     end
     
-    plotTotalLogProbData(totalLogProbsVector,dataFile);
-    writeOutput(modelFile,clusterExampleProbs,data);
+    % plotTotalLogProbData(totalLogProbsVector,dataFile);
+    writeOutput(modelFile,multinomials,data);
 end
 
 function plotTotalLogProbData(totalLogProbVector,dataFile)
@@ -45,6 +47,7 @@ function plotTotalLogProbData(totalLogProbVector,dataFile)
 end
 
 function [rawData] = scanIn( dataFile, numExamples, numFeatures)
+    disp('Scanning in data');
     fid = fopen(dataFile,'r'); % Open text file
     
     r = [1 1 numExamples numFeatures];
@@ -54,40 +57,54 @@ function [rawData] = scanIn( dataFile, numExamples, numFeatures)
     fclose(fid);
 end
 
-function writeOutput(modelFile,clusterLogDist,data)
-    fid = fopen(modelFile,'w'); % Open text file
+function writeOutput(modelFile,multinomials,data)
+    % fid = fopen(modelFile,'w'); % Open text file
     
     exAndFeat = size(data);
     numExamples = exAndFeat(1);
     numFeatures = exAndFeat(2);
-    exAndClus = size(clusterLogDist);
-    numClusters = exAndClus(2);
-    
-    %find the max clusterLogDistribution of each example and save it as the
-    %cluster the example is assign to
-    assignedCluster = (1:numExamples).*0;
-    for ex=1:numExamples
-        max = -realmax;
-        
-        for c=1:numClusters
-            if(clusterLogDist(ex,c)>max)
-                assignedCluster(ex) = c;
-                max = clusterLogDist(ex,c);
+    exAndClus = size(multinomials);
+    numClusters = exAndClus(1);
+    numValPerFeature = exAndClus(3);
+%     
+%     %find the max clusterLogDistribution of each example and save it as the
+%     %cluster the example is assign to
+%     assignedCluster = (1:numExamples).*0;
+%     for ex=1:numExamples
+%         max = -realmax;
+%         
+%         for c=1:numClusters
+%             if(clusterLogDist(ex,c)>max)
+%                 assignedCluster(ex) = c;
+%                 max = clusterLogDist(ex,c);
+%             end
+%         end
+%         
+%         fprintf(fid,'%d ',assignedCluster(ex) );
+%         fprintf(fid,repmat('%f ',[1,numFeatures]),data(ex,:) );
+%         fprintf(fid,'\n');
+%     end
+%         
+%     fclose(fid);
+
+    for c=1:numClusters
+        fid = fopen(strcat(modelFile, int2str(c), '.txt'), 'w');
+        for f=1:numFeatures
+            for v=1:numValPerFeature
+                fprintf(fid, '%d ', multinomials(c, f, v));
             end
+            fprintf(fid, '\n');
         end
-        
-        fprintf(fid,'%d ',assignedCluster(ex) );
-        fprintf(fid,repmat('%f ',[1,numFeatures]),data(ex,:) );
-        fprintf(fid,'\n');
+        fclose(fid);
     end
-        
-    fclose(fid);
+
 end
 
 % multinomials: (num clusters) x (num features) x (num values per fectures)
 % array of integers representing counts of each value for each feature in a
 % cluster
-function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
+function [multinomials, priors, maxNumValues] = init(data, numClusters, maxNumValuesPerFeat)
+    disp('Initializing data');
     %initialize cluster priors to a uniform distribution
     if numClusters==1
         priors = 1;
@@ -100,10 +117,11 @@ function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
     numExAndFeat = size(data);
     numEx = numExAndFeat(1);
     numFeat = numExAndFeat(2);
+    maxNumValues = max(maxNumValuesPerFeat);
     
     %iterate through datapoints; assign each datapoint to a cluster and
     %update the assigned cluster's multinomial distribution
-    multinomials = zeros(numClusters, numFeat, (max(maxNumValuesPerFeat) + 1));
+    multinomials = zeros(numClusters, numFeat, (maxNumValues + 1));
     
     numDataInCluster = zeros(numClusters);
     for i=1:numEx
@@ -123,7 +141,7 @@ function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
         for f=1:numFeat
             % divide each feature value by the total number of data in the
             % cluster
-            for v=1:max(maxNumValuesPerFeat)
+            for v=1:maxNumValues
                 multinomials(c, f, v) = multinomials(c, f, v) / numDataInCluster(c);
             end
         end
@@ -132,6 +150,7 @@ function [multinomials, priors] = init(data, numClusters, maxNumValuesPerFeat)
 end
 
 function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors, multinomials)
+    disp('Performing E step');
     probClusterEx = zeros(numClusters, numExamples);
 
     for ex=1:numExamples        
@@ -140,7 +159,7 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
             prior = log(priors(c));
             
             % log P(ex : c) = (sum over all features k) log P(ex_k : c_k)
-            double prob_ex_c = 0;
+            prob_ex_c = double(0);
             for f = 1:numFeatures
                 prob_ex_c = prob_ex_c + log(multinomials(c, f, data(ex, f) + 1));
             end
@@ -152,7 +171,7 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
             max_cluster_comp = 0;
             
             for ci = 1:numClusters
-                double prob_ex_c = priors(ci);
+                prob_ex_c = double(priors(ci));
                 
                 for f1 = 1:numFeatures
                     prob_ex_c = prob_ex_c * multinomials (ci, f1, data(ex, f1) + 1);
@@ -166,29 +185,30 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
             end
             
             % get log (sum over all clusters) exp(comps(c) - max_comp)
-            double cluster_log_sum = 0;
+            cluster_log_sum = double(0);
             
             for ci = 1:numClusters
                 cluster_log_sum = cluster_log_sum + exp(cluster_comps(ci) - max_cluster_comp);
             end
             
-            double prob_ex = max_cluster_comp + log(cluster_log_sum);
+            prob_ex = double(max_cluster_comp) + double(log(cluster_log_sum));
             
             probClusterEx(c, ex) = prior + prob_ex_c + prob_ex;
         end
     end
 end
 
-function [multinomials, priors] = mStep(data, numExamples, numFeatures, numClusters, priors, multinomials, probClusterEx)
+function [multinomials, priors] = mStep(data, numExamples, numFeat, numClusters, multinomials, probClusterEx, maxNumValuesPerFeat)
+    disp('Performing M step');
     % Update the cluster priors
     % P(c) = (1/ num examples) (sum over all examples) p(c | ex) [in
     % probClusterEx]
     priors = zeros(numClusters);
     
     for c = 1:numClusters
-        double ex_sum = 0;
+        ex_sum = double(0);
         
-        for ex = 1:numExaples
+        for ex = 1:numExamples
             ex_sum = ex_sum + probClusterEx(c, ex);
         end
         
@@ -196,7 +216,41 @@ function [multinomials, priors] = mStep(data, numExamples, numFeatures, numClust
     end
     
     % Update the multinomials
-    % For each cluster-feature-value, look at each example's p(c : ex) 
+    % Naive approach, simply iterate through the examples and choose the
+    % most likely cluster, updating that cluster's multinomial that way
+    numDataInCluster = zeros(numClusters);
+    
+    for i=1:numExamples
+        % get the cluster assignment
+        mostLikelyCluster = 1;
+        mostLikelyProb = probClusterEx(1, i);
+        
+        for c=2:numClusters
+            if probClusterEx(c, i) > mostLikelyProb
+                mostLikelyProb = probClusterEx(c, i);
+                mostLikelyCluster = c;
+            end
+        end
+            
+        numDataInCluster(mostLikelyCluster) = numDataInCluster(mostLikelyCluster) + 1;
+        
+        % iterate through the number of features and add 1 to the feature
+        % value which the data has
+        for j=1:numFeat
+            multinomials(mostLikelyCluster, j, (data(i, j) + 1)) = multinomials(mostLikelyCluster, j, (data(i, j) + 1)) + 1;
+        end
+    end
+    
+    % normalize multinomials
+    for c=1:numClusters
+        for f=1:numFeat
+            % divide each feature value by the total number of data in the
+            % cluster
+            for v=1:max(maxNumValuesPerFeat)
+                multinomials(c, f, v) = multinomials(c, f, v) / numDataInCluster(c);
+            end
+        end
+    end
 end
 
 function totalLogProb = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators)    
