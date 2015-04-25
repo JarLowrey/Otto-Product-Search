@@ -8,6 +8,7 @@ function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFe
     [multinomials, priors,maxNumValues] = init(data,numClusters, maxNumValuesPerFeat);
     logProb = -realmax;
     
+    
     repeat=true;
     iterationNo=0;
     maxIterations = 25;
@@ -15,6 +16,8 @@ function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFe
         [clusterExampleProbs] = eStep(data,numExamples,numFeatures,numClusters,priors, multinomials);
         [multinomials, priors] = mStep(data,numExamples,numFeatures,numClusters,multinomials,clusterExampleProbs,maxNumValues);
         
+     writeOutput(modelFile,multinomials,data);
+       
         %see if stopping condition has been met by finding total log Prob
 %         probAfterIteration = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators);
 %         repeat = (probAfterIteration-elogProb) > 0.001;
@@ -33,7 +36,6 @@ function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFe
     end
     
     % plotTotalLogProbData(totalLogProbsVector,dataFile);
-    writeOutput(modelFile,multinomials,data);
 end
 
 function plotTotalLogProbData(totalLogProbVector,dataFile)
@@ -153,7 +155,7 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
     disp('Performing E step');
     probClusterEx = zeros(numClusters, numExamples);
 
-    for ex=1:numExamples        
+    for ex=1:numExamples   
         for c=1:numClusters
             % Calculate P(c : ex) = log P(c) + log P(ex : c) - log P(ex)
             prior = log(priors(c));
@@ -163,7 +165,7 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
             for f = 1:numFeatures
                 prob_ex_c = prob_ex_c + log(multinomials(c, f, data(ex, f) + 1));
             end
-            
+                        
             % log P(ex) = log (sum over all clusters) P(c) * P(ex : C)
             % use log-sum-exp trick            
             cluster_comps = zeros(numClusters);
@@ -190,10 +192,10 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
             for ci = 1:numClusters
                 cluster_log_sum = cluster_log_sum + exp(cluster_comps(ci) - max_cluster_comp);
             end
+                        
+            prob_ex = double(max_cluster_comp) + double(log(cluster_log_sum)) + 1;
             
-            prob_ex = double(max_cluster_comp) + double(log(cluster_log_sum));
-            
-            probClusterEx(c, ex) = prior + prob_ex_c + prob_ex;
+            probClusterEx(c, ex) = prior + prob_ex_c - prob_ex;
         end
     end
 end
@@ -205,6 +207,8 @@ function [multinomials, priors] = mStep(data, numExamples, numFeat, numClusters,
     % probClusterEx]
     priors = zeros(numClusters);
     
+    prior_sum = double(0);
+    
     for c = 1:numClusters
         ex_sum = double(0);
         
@@ -213,6 +217,12 @@ function [multinomials, priors] = mStep(data, numExamples, numFeat, numClusters,
         end
         
         priors(c) = ex_sum / numExamples;
+
+        prior_sum = prior_sum + priors(c);
+    end
+    
+    for c = 1:numClusters
+        priors(c) = priors(c) / prior_sum;
     end
     
     % Update the multinomials
@@ -229,6 +239,10 @@ function [multinomials, priors] = mStep(data, numExamples, numFeat, numClusters,
             if probClusterEx(c, i) > mostLikelyProb
                 mostLikelyProb = probClusterEx(c, i);
                 mostLikelyCluster = c;
+            elseif probClusterEx(c, i) == mostLikelyProb
+                if (floor(2 * rand()) == 1)
+                    mostLikelyCluster = c;
+                end
             end
         end
             
@@ -243,6 +257,7 @@ function [multinomials, priors] = mStep(data, numExamples, numFeat, numClusters,
     
     % normalize multinomials
     for c=1:numClusters
+        disp(numDataInCluster(c));
         for f=1:numFeat
             % divide each feature value by the total number of data in the
             % cluster
