@@ -1,9 +1,9 @@
-function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFeatures)
+function logProb = gaussmix(numClusters, dataFile, dataFileWithClusters, modelFile, numExamples, numFeatures)
     if isa(numClusters,'char')
-        numClusters = str2double(numClusters);
+        numClusters = str2int(numClusters);
     end
     
-    data = scanIn(dataFile, numExamples, numFeatures);
+    [data, correctClusters] = scanIn(dataFile, numExamples, numFeatures, dataFileWithClusters);
     maxNumValuesPerFeat = max(data);
     [multinomials, priors,maxNumValues] = init(data,numClusters, maxNumValuesPerFeat);
     logProb = -realmax;
@@ -11,13 +11,11 @@ function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFe
     
     repeat=true;
     iterationNo=0;
-    maxIterations = 25;
+    maxIterations = 15;
     while repeat 
         [clusterExampleProbs] = eStep(data,numExamples,numFeatures,numClusters,priors, multinomials);
         [multinomials, priors] = mStep(data,numExamples,numFeatures,numClusters,multinomials,clusterExampleProbs,maxNumValues);
-        
-     writeOutput(modelFile,multinomials,data);
-       
+               
         %see if stopping condition has been met by finding total log Prob
 %         probAfterIteration = totalLogLikelihoodOfData(numExamples,clusterLogDistDenominators);
 %         repeat = (probAfterIteration-elogProb) > 0.001;
@@ -35,6 +33,12 @@ function logProb = gaussmix(numClusters, dataFile, modelFile, numExamples, numFe
         repeat = iterationNo < maxIterations;
     end
     
+    writeOutput(modelFile,multinomials,data);
+    
+    [correct, percentCorrect] = checkCorrectClustering(clusterExampleProbs, correctClusters, numClusters);
+    
+    disp(percentCorrect);
+    
     % plotTotalLogProbData(totalLogProbsVector,dataFile);
 end
 
@@ -48,15 +52,26 @@ function plotTotalLogProbData(totalLogProbVector,dataFile)
 
 end
 
-function [rawData] = scanIn( dataFile, numExamples, numFeatures)
+function [rawData, correctClusters] = scanIn( dataFile, numExamples, numFeatures, dataFileWithClusters)
     disp('Scanning in data');
     fid = fopen(dataFile,'r'); % Open text file
     
     r = [1 1 numExamples numFeatures];
     
     rawData = dlmread(dataFile, ',', r);
-                    
     fclose(fid);
+    
+    % read in header string for correct cluster file
+    datafile2 = fopen(dataFileWithClusters, 'r');
+    fgetl(datafile2);
+    correctClusters = zeros(numExamples);
+    for ex=1:numExamples
+        str = fgetl(datafile2);
+        cluster = sscanf(str,'Class_%d');
+        correctClusters(ex) = cluster;
+    end
+                    
+    fclose(datafile2);
 end
 
 function writeOutput(modelFile,multinomials,data)
@@ -153,7 +168,7 @@ end
 
 function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors, multinomials)
     disp('Performing E step');
-    probClusterEx = zeros(numClusters, numExamples);
+    probClusterEx = zeros(numExamples, numClusters);
 
     for ex=1:numExamples   
         for c=1:numClusters
@@ -195,7 +210,7 @@ function [probClusterEx] = eStep(data,numExamples,numFeatures,numClusters,priors
                         
             prob_ex = double(max_cluster_comp) + double(log(cluster_log_sum)) + 1;
             
-            probClusterEx(c, ex) = prior + prob_ex_c - prob_ex;
+            probClusterEx(ex, c) = prior + prob_ex_c - prob_ex;
         end
     end
 end
@@ -213,7 +228,7 @@ function [multinomials, priors] = mStep(data, numExamples, numFeat, numClusters,
         ex_sum = double(0);
         
         for ex = 1:numExamples
-            ex_sum = ex_sum + probClusterEx(c, ex);
+            ex_sum = ex_sum + probClusterEx(ex, c);
         end
         
         priors(c) = ex_sum / numExamples;
@@ -233,15 +248,36 @@ function [multinomials, priors] = mStep(data, numExamples, numFeat, numClusters,
     for i=1:numExamples
         % get the cluster assignment
         mostLikelyCluster = 1;
-        mostLikelyProb = probClusterEx(1, i);
+        mostLikelyProb = probClusterEx(i, 1);
+        equiprobableClusters = zeros(numClusters);
+        equiprobableClusters(1) = 1;
+        numEquiprobable = 1;
         
         for c=2:numClusters
-            if probClusterEx(c, i) > mostLikelyProb
-                mostLikelyProb = probClusterEx(c, i);
+            if probClusterEx(i, c) > mostLikelyProb
+                mostLikelyProb = probClusterEx(i, c);
+                equiprobableClusters = zeros(numClusters);
+                equiprobableClusters(c) = 1;
+                numEquiprobable = 1;
                 mostLikelyCluster = c;
-            elseif probClusterEx(c, i) == mostLikelyProb
-                if (floor(2 * rand()) == 1)
-                    mostLikelyCluster = c;
+            elseif probClusterEx(i, c) == mostLikelyProb
+                % If they're equiprobably, add to list of equiprobable ones
+                equiprobableClusters(c) = 1;
+                numEquiprobable = numEquiprobable + 1;
+            end
+        end
+        
+        % If numEquiprobable greater than one, choose a random equiprobable
+        % element.
+        if numEquiprobable > 1
+            randElem = floor(numEquiprobable * rand());
+            index = 0;
+            for elem=1:numClusters
+                if equiprobableClusters(elem) == 1
+                    if index == randElem
+                        mostLikelyCluster = elem;
+                    end
+                    index = index + 1;
                 end
             end
         end
@@ -283,6 +319,55 @@ function totalLogProb = totalLogLikelihoodOfData(numExamples,clusterLogDistDenom
     end
 end
 
+function [correct, percentCorrect] = checkCorrectClustering(probClusterEx, correctClusters, numClusters)
+    correct = zeros(size(correctClusters));
+    numElements = size(correctClusters);
+
+    for e=1:numElements
+        % for each example, check to see which cluster it fits in best.
+                % get the cluster assignment
+        mostLikelyCluster = 1;
+        mostLikelyProb = probClusterEx(e, 1);
+        equiprobableClusters = zeros(numClusters);
+        equiprobableClusters(1) = 1;
+        numEquiprobable = 1;
+        
+        for c=2:numClusters
+            if probClusterEx(e, c) > mostLikelyProb
+                mostLikelyProb = probClusterEx(e, c);
+                equiprobableClusters = zeros(numClusters);
+                equiprobableClusters(c) = 1;
+                numEquiprobable = 1;
+                mostLikelyCluster = c;
+            elseif probClusterEx(e, c) == mostLikelyProb
+                % If they're equiprobably, add to list of equiprobable ones
+                equiprobableClusters(c) = 1;
+                numEquiprobable = numEquiprobable + 1;
+            end
+        end
+        
+        % If numEquiprobable greater than one, choose a random equiprobable
+        % element.
+        if numEquiprobable > 1
+            randElem = floor(numEquiprobable * rand());
+            index = 0;
+            for elem=1:numClusters
+                if equiprobableClusters(elem) == 1
+                    if index == randElem
+                        mostLikelyCluster = elem;
+                    end
+                    index = index + 1;
+                end
+            end
+        end
+        
+        if correctClusters(e) == mostLikelyCluster
+            correct(e) = 1;
+        end
+    end
+    
+    percentCorrect = sum(correct) / numElements;
+end
 
 
 
